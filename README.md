@@ -7,45 +7,53 @@ A production-grade, AI-powered real estate intelligence assistant that collects 
 ## 🏛️ Architecture & System Pipeline
 
 ```mermaid
-flowchart LR
-    subgraph S1["1. Data Ingestion"]
-        direction TB
-        DG["DarGlobal Website"] --> DGS["Playwright Scraper"]
-        WS["Wasalt Marketplace"] --> WSS["BS4 Scraper"]
-        DGS --> DC["Cleaner & Normalizer"]
-        WSS --> DC
-        DC --> DB[("PostgreSQL / SQLite")]
+flowchart TB
+    subgraph TOP["DATA COLLECTION & INDEXING PIPELINE"]
+        direction LR
+        subgraph S1["1. Data Ingestion & Storage"]
+            direction TB
+            DG["DarGlobal Website"] --> DGS["Playwright Scraper"]
+            WS["Wasalt Marketplace"] --> WSS["BS4 Scraper"]
+            DGS --> DC["Cleaner & Normalizer"]
+            WSS --> DC
+            DC --> DB[("PostgreSQL / SQLite")]
+        end
+
+        subgraph S2["2. Vector Indexing Engine"]
+            direction TB
+            TC["Text Chunking Engine"] --> EMB["SentenceTransformers 384d"]
+            EMB --> VEC[("Vector Store Chunks")]
+        end
+
+        DB --> TC
     end
 
-    subgraph S2["2. Vector Indexing"]
-        direction TB
-        TC["Text Chunker"] --> EMB["all-MiniLM-L6-v2"]
-        EMB --> VEC[("Vector Store 384d")]
+    subgraph BOTTOM["AI INFERENCE & LUXURY USER INTERFACE"]
+        direction LR
+        subgraph S3["3. RAG Retrieval & Inference"]
+            direction TB
+            Query["User Query & Attachments"] --> EmbedQ["Query Embedder"]
+            EmbedQ --> Ret["pgvector Cosine Search"]
+            Ret --> Ctx["Grounded Context"]
+            Ctx --> LLM["OpenRouter Free LLM"]
+            LLM --> Clean["Response Sanitizer"]
+        end
+
+        subgraph S4["4. Real Estate Intelligence UI"]
+            direction TB
+            UI(["PropIntel AI Chat"])
+            PE["Project Explorer (Showcase)"]
+            DE["Data Explorer (Listings)"]
+            AD["Admin Dashboard (Health)"]
+            UI --- PE
+            UI --- DE
+            UI --- AD
+        end
+
+        Clean --> UI
     end
 
-    subgraph S3["3. RAG & Inference"]
-        direction TB
-        Query["User Query & Attachments"] --> EmbedQ["Query Embedder"]
-        EmbedQ --> Ret["pgvector Cosine Search"]
-        Ret --> Ctx["Grounded Context"]
-        Ctx --> LLM["OpenRouter Free LLM"]
-        LLM --> Clean["Response Sanitizer"]
-    end
-
-    subgraph S4["4. Luxury UI Experience"]
-        direction TB
-        UI(["PropIntel AI Chat"])
-        PE["Project Explorer"]
-        DE["Data Explorer"]
-        AD["Admin Dashboard"]
-        UI --- PE
-        UI --- DE
-        UI --- AD
-    end
-
-    DB --> TC
     VEC -.-> Ret
-    Clean --> UI
 ```
 
 ---
