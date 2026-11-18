@@ -7,8 +7,9 @@ __pycache__/
 .env
 node_modules/
 frontend/node_modules/
-dist/
-frontend/dist/
+/dist/
+!frontend/dist/
+!frontend/dist/**
 uploads/
 .venv/
 venv/
