@@ -37,7 +37,7 @@ class ScraperManager:
                 self.db.add(src)
         self.db.commit()
 
-    async def run_scraping(self, source_filter: str = "all", index_service = None, live: bool = False) -> ScrapeJob:
+    def run_scraping(self, source_filter: str = "all", index_service = None, live: bool = False) -> ScrapeJob:
         self.ensure_sources()
 
         job = ScrapeJob(
@@ -68,7 +68,7 @@ class ScraperManager:
         for name, scraper in active_scrapers.items():
             try:
                 logger.info(f"ScraperManager: Running scraper for {name} (live={live})")
-                data = await scraper.scrape(live=live)
+                data = scraper.scrape(live=live)
                 
                 proj_count = 0
                 prop_count = 0
@@ -177,7 +177,7 @@ class ScraperManager:
         # Trigger indexing if index service provided
         if index_service:
             try:
-                indexed_count = await index_service.index_pending_documents(self.db)
+                indexed_count = index_service.index_pending_documents(self.db)
                 details["indexed_documents"] = indexed_count
             except Exception as e:
                 self.db.rollback()

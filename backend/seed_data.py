@@ -10,8 +10,8 @@ from backend.app.scrapers.scraper_manager import ScraperManager
 from backend.app.services.retrieval_service import retrieval_service
 from backend.app.models import Property, Project, Document, DocumentChunk, Source
 
-async def seed():
-    print("Dropping existing tables to ensure clean schema...")
+def seed():
+    print("Dropping existing tables to ensure clean schema...", flush=True)
     with engine.connect() as conn:
         conn.execute(text("DROP TABLE IF EXISTS document_chunks"))
         conn.execute(text("DROP TABLE IF EXISTS documents"))
@@ -20,35 +20,35 @@ async def seed():
         conn.execute(text("DROP TABLE IF EXISTS sources"))
         conn.commit()
 
-    print("Re-initializing database tables...")
+    print("Re-initializing database tables...", flush=True)
     init_db()
     db = SessionLocal()
     try:
-        print("Running ScraperManager to populate DarGlobal & Wasalt records...")
+        print("Running ScraperManager to populate DarGlobal & Wasalt records...", flush=True)
         manager = ScraperManager(db=db)
-        job = await manager.run_scraping(source_filter="all", index_service=retrieval_service, live=False)
-        print(f"Scrape Job finished with status: {job.status}")
-        print(f"Total records ingested: {job.records_scraped}")
+        job = manager.run_scraping(source_filter="all", index_service=retrieval_service, live=False)
+        print(f"Scrape Job finished with status: {job.status}", flush=True)
+        print(f"Total records ingested: {job.records_scraped}", flush=True)
         
         proj_count = db.query(Project).count()
         prop_count = db.query(Property).count()
         doc_count = db.query(Document).count()
         chunk_count = db.query(DocumentChunk).count()
         
-        print("\n" + "=" * 40)
-        print("         DATABASE SUMMARY")
-        print("=" * 40)
-        print(f"  • Projects in DB:   {proj_count}")
-        print(f"  • Properties in DB: {prop_count}")
-        print(f"  • Documents in DB:  {doc_count}")
-        print(f"  • Chunks Indexed:   {chunk_count}")
-        print("=" * 40)
+        print("\n" + "=" * 40, flush=True)
+        print("         DATABASE SUMMARY", flush=True)
+        print("=" * 40, flush=True)
+        print(f"  • Projects in DB:   {proj_count}", flush=True)
+        print(f"  • Properties in DB: {prop_count}", flush=True)
+        print(f"  • Documents in DB:  {doc_count}", flush=True)
+        print(f"  • Chunks Indexed:   {chunk_count}", flush=True)
+        print("=" * 40, flush=True)
         assert proj_count > 0, "No projects inserted!"
         assert prop_count > 0, "No properties inserted!"
         assert chunk_count > 0, "No chunks indexed!"
-        print("Database seeding & vector indexing completed successfully!")
+        print("Database seeding & vector indexing completed successfully!", flush=True)
     finally:
         db.close()
 
 if __name__ == "__main__":
-    asyncio.run(seed())
+    seed()

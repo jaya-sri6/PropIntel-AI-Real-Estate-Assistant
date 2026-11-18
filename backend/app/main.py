@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
             if prop_count == 0 and proj_count == 0:
                 logger.info("Database is empty. Running initial verified data seeding & indexing...")
                 manager = ScraperManager(db=db)
-                await manager.run_scraping(source_filter="all", index_service=retrieval_service, live=False)
+                manager.run_scraping(source_filter="all", index_service=retrieval_service, live=False)
                 logger.info("Initial seeding & indexing completed.")
         except Exception as e:
             logger.error(f"Error during startup data initialization: {e}", exc_info=True)
@@ -67,10 +67,17 @@ app.include_router(projects.router, prefix=settings.API_V1_STR)
 app.include_router(sources.router, prefix=settings.API_V1_STR)
 app.include_router(admin.router, prefix=settings.API_V1_STR)
 
+# Mount uploads directory for user attachments
+uploads_dir = Path(__file__).parent.parent.parent / "uploads"
+uploads_dir.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
+
 # Mount frontend dist static assets if built
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
 if frontend_dist.exists():
     app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
+    if (frontend_dist / "images").exists():
+        app.mount("/images", StaticFiles(directory=str(frontend_dist / "images")), name="images")
     
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):

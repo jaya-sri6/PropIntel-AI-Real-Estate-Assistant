@@ -3,7 +3,31 @@ import { ChatMessage, SourceCitation, AdminStats, Property, Project } from '../t
 const API_BASE = '/api';
 
 export const api = {
-  async sendMessage(message: string, conversationId?: string, sourceFilter: string = 'all'): Promise<{
+  async uploadFile(file: File): Promise<{
+    name: string;
+    url: string;
+    size: number;
+    content_type: string;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/upload`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Upload failed (${res.status}): ${err}`);
+    }
+    return res.json();
+  },
+
+  async sendMessage(
+    message: string,
+    conversationId?: string,
+    sourceFilter: string = 'all',
+    attachment?: { name: string; url: string }
+  ): Promise<{
     answer: string;
     sources: SourceCitation[];
     conversation_id: string;
@@ -14,7 +38,9 @@ export const api = {
       body: JSON.stringify({
         message,
         conversation_id: conversationId,
-        source_filter: sourceFilter
+        source_filter: sourceFilter,
+        attachment_name: attachment?.name,
+        attachment_url: attachment?.url
       })
     });
     if (!res.ok) {
@@ -57,6 +83,20 @@ export const api = {
     const query = new URLSearchParams(params).toString();
     const res = await fetch(`${API_BASE}/projects?${query}`);
     if (!res.ok) throw new Error('Failed to fetch projects');
+    return res.json();
+  },
+
+  async fetchConversations(): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/conversations`);
+    if (!res.ok) throw new Error('Failed to fetch conversation history');
+    return res.json();
+  },
+
+  async deleteConversation(conversationId: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/conversations/${conversationId}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Failed to delete conversation');
     return res.json();
   },
 

@@ -15,7 +15,7 @@ class BaseScraper(ABC):
         }
 
     @abstractmethod
-    async def scrape(self, live: bool = False) -> Dict[str, List[Dict[str, Any]]]:
+    def scrape(self, live: bool = False) -> Dict[str, List[Dict[str, Any]]]:
         """
         Executes the scraping pipeline.
         Args:

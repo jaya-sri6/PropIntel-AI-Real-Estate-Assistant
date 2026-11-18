@@ -129,6 +129,7 @@ class DataCleaner:
             "location": location,
             "city": city,
             "district": district,
+            "country": record.get("country"),
             "property_type": record.get("property_type") or record.get("property_category"),
             "sale_or_rent": record.get("sale_or_rent", "sale"),
             "description": description,

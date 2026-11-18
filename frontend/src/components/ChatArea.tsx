@@ -11,13 +11,18 @@ import {
   Eye,
   Check,
   User,
-  Sparkles
+  Sparkles,
+  FileText,
+  Image as ImageIcon,
+  X as XIcon,
+  Loader2
 } from 'lucide-react';
-import { ChatMessage, SourceCitation } from '../types';
+import { ChatMessage, SourceCitation, ChatAttachment } from '../types';
+import { api } from '../services/api';
 
 interface ChatAreaProps {
   messages: ChatMessage[];
-  onSendMessage: (msg: string) => void;
+  onSendMessage: (msg: string, overrideFilter?: string, attachment?: ChatAttachment) => void;
   isLoading: boolean;
   onSelectPrompt: (prompt: string) => void;
   onOpenSourceModal: (sources: SourceCitation[]) => void;
@@ -32,6 +37,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 }) => {
   const [input, setInput] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [pendingAttachment, setPendingAttachment] = useState<ChatAttachment | null>(null);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -42,17 +50,93 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     scrollToBottom();
   }, [messages, isLoading]);
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const res = await api.uploadFile(file);
+      setPendingAttachment({
+        name: res.name,
+        url: res.url,
+        size: res.size,
+        type: res.content_type
+      });
+    } catch (err: any) {
+      console.error('File upload failed:', err);
+      alert('Upload failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
-    onSendMessage(input.trim());
+    const text = input.trim();
+    if ((!text && !pendingAttachment) || isLoading || isUploading) return;
+    const finalMsg = text || (pendingAttachment ? `Uploaded reference: ${pendingAttachment.name}` : '');
+    onSendMessage(finalMsg, undefined, pendingAttachment || undefined);
     setInput('');
+    setPendingAttachment(null);
   };
 
   const handleCopy = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
+    // Copy clean text without asterisks
+    const clean = text.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1').replace(/\*\*/g, '');
+    navigator.clipboard.writeText(clean);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const renderCleanText = (rawContent: string) => {
+    // Strip bold and italic markdown asterisks
+    const stripped = rawContent
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/\*\*/g, '')
+      .replace(/__([^_]+)__/g, '$1');
+
+    const lines = stripped.split('\n');
+    return lines.map((line, lineIdx) => {
+      // Parse markdown links: [Title](url)
+      const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+      const parts: (string | React.ReactNode)[] = [];
+      let lastIndex = 0;
+      let match: RegExpExecArray | null;
+
+      while ((match = linkRegex.exec(line)) !== null) {
+        if (match.index > lastIndex) {
+          parts.push(line.substring(lastIndex, match.index));
+        }
+        const label = match[1];
+        const url = match[2];
+        parts.push(
+          <a
+            key={`inline-link-${lineIdx}-${match.index}`}
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-gold-400 hover:text-gold-300 underline underline-offset-2 inline-flex items-center gap-0.5 mx-1 font-medium transition-colors"
+          >
+            {label}
+            <ExternalLink className="w-3 h-3 inline ml-0.5 opacity-80" />
+          </a>
+        );
+        lastIndex = match.index + match[0].length;
+      }
+
+      if (lastIndex < line.length) {
+        parts.push(line.substring(lastIndex));
+      }
+
+      return (
+        <div key={lineIdx} className={line.trim() === '' ? 'h-2' : 'min-h-[1.25rem]'}>
+          {parts.length > 0 ? parts : line}
+        </div>
+      );
+    });
   };
 
   const promptPills = [
@@ -66,28 +150,32 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     <main className="flex-1 h-full flex flex-col justify-between bg-[#0B0D0E] overflow-hidden relative">
       {/* Scrollable Chat & Hero Container */}
       <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
-        {/* Hero Section (Always visible or compact) */}
-        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-[#111316] via-[#14161A] to-[#121417] border border-[#1E2228] p-7 mb-4 shadow-xl flex items-center justify-between">
-          {/* Left Text */}
-          <div className="max-w-xl z-10 space-y-2.5">
-            <h1 className="font-serif text-3xl md:text-4xl font-semibold tracking-tight text-ivory-50 leading-tight">
+        {/* Hero Section — Luxury Villa Background with Left Charcoal Gradient */}
+        <div className="relative rounded-3xl overflow-hidden border border-[#232730] min-h-[200px] md:min-h-[230px] mb-4 shadow-2xl flex items-center bg-[#0D0F12]">
+          {/* Background Image: Luxury Villa, Pool & Glass Architecture */}
+          <div
+            className="absolute inset-0 bg-cover bg-no-repeat pointer-events-none"
+            style={{
+              backgroundImage: "url('/images/hero-villa.jpg')",
+              backgroundPosition: 'center right'
+            }}
+          />
+
+          {/* Charcoal Gradient Overlay: Deep dark on left 55%, blending into transparent on right 45% */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0B0D0E] via-[#0B0D0E]/85 via-50% to-[#0B0D0E]/20 pointer-events-none" />
+
+          {/* Subtle top/bottom edge shade for seamless dark integration */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0B0D0E]/40 via-transparent to-[#0B0D0E]/60 pointer-events-none" />
+
+          {/* Left Hero Content (~55% width on desktop) */}
+          <div className="relative z-10 p-6 md:p-7 max-w-full md:max-w-[58%] lg:max-w-[55%] space-y-2.5">
+            <h1 className="font-serif text-2xl md:text-3xl font-semibold tracking-tight text-ivory-50 leading-tight">
               Your Real Estate <br />
               Intelligence Starts Here.
             </h1>
-            <p className="text-xs md:text-sm text-[#8D8A82] leading-relaxed max-w-md">
+            <p className="text-xs text-[#9E9B92] leading-relaxed max-w-md">
               Explore luxury developments, property listings, locations, and opportunities across DarGlobal and Wasalt — powered by AI.
             </p>
-          </div>
-
-          {/* Right Villa Image Crop */}
-          <div className="absolute right-0 top-0 bottom-0 w-2/5 overflow-hidden pointer-events-none opacity-85 mask-gradient">
-            <img
-              src="/hero-reference.jpg"
-              alt="Luxury Architecture"
-              className="w-full h-full object-cover object-right"
-            />
-            {/* Soft gradient blend on the left of image */}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#111316] via-[#111316]/50 to-transparent" />
           </div>
         </div>
 
@@ -118,11 +206,43 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <div key={msg.id} className="space-y-3">
               {msg.role === 'user' ? (
                 /* User Message Bubble */
-                <div className="flex items-center justify-end space-x-2.5">
-                  <div className="bg-[#181B20] text-ivory-100 px-4 py-2.5 rounded-2xl rounded-tr-sm border border-[#252A32] text-xs md:text-sm max-w-lg shadow-sm">
-                    {msg.content}
+                <div className="flex items-end justify-end space-x-2.5">
+                  <div className="space-y-2 max-w-lg">
+                    {msg.attachment && (
+                      <div className="p-2 rounded-2xl bg-[#181B20] border border-[#252A32] shadow-sm">
+                        {msg.attachment.type?.startsWith('image/') ? (
+                          <a href={msg.attachment.url} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-xl group">
+                            <img
+                              src={msg.attachment.url}
+                              alt={msg.attachment.name}
+                              className="max-h-56 w-auto object-cover rounded-xl group-hover:scale-105 transition-transform duration-300"
+                            />
+                          </a>
+                        ) : (
+                          <a
+                            href={msg.attachment.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center space-x-2.5 p-2 rounded-xl bg-[#121417] hover:bg-[#16181D] text-xs text-ivory-100 transition-colors"
+                          >
+                            <FileText className="w-5 h-5 text-gold-400 shrink-0" />
+                            <div className="truncate">
+                              <div className="font-medium truncate">{msg.attachment.name}</div>
+                              {msg.attachment.size && (
+                                <div className="text-[10px] text-[#7A776F]">{(msg.attachment.size / 1024).toFixed(0)} KB</div>
+                              )}
+                            </div>
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    {msg.content && (
+                      <div className="bg-[#181B20] text-ivory-100 px-4 py-2.5 rounded-2xl rounded-tr-sm border border-[#252A32] text-xs md:text-sm shadow-sm">
+                        {msg.content}
+                      </div>
+                    )}
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-[#1F232A] border border-[#2E333C] flex items-center justify-center text-[#9E9A90] shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-[#1F232A] border border-[#2E333C] flex items-center justify-center text-[#9E9A90] shrink-0 mb-1">
                     <User className="w-4 h-4" />
                   </div>
                 </div>
@@ -137,8 +257,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   {/* Main Response Container */}
                   <div className="flex-1 bg-[#121417] border border-[#1F2329] rounded-2xl p-5 shadow-lg space-y-4">
                     {/* Answer Text */}
-                    <div className="text-xs md:text-sm text-ivory-100/95 leading-relaxed space-y-2 whitespace-pre-wrap">
-                      {msg.content}
+                    <div className="text-xs md:text-sm text-ivory-100/95 leading-relaxed space-y-1.5">
+                      {renderCleanText(msg.content)}
                     </div>
 
                     {/* Sources (N) Cards */}
@@ -238,17 +358,67 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
       {/* Bottom Floating Input Bar */}
       <div className="p-6 bg-gradient-to-t from-[#0B0D0E] via-[#0B0D0E] to-transparent">
+        {/* Hidden File Input for Paperclip Upload */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          className="hidden"
+          accept="image/*,.pdf,.doc,.docx,.txt"
+        />
+
+        {/* Uploaded File Chip Preview */}
+        {pendingAttachment && (
+          <div className="max-w-4xl mx-auto mb-2.5 flex items-center">
+            <div className="flex items-center space-x-2.5 px-3 py-1.5 rounded-xl bg-[#16181D] border border-gold-500/35 text-xs text-ivory-100 shadow-xl animate-in fade-in duration-200">
+              {pendingAttachment.type?.startsWith('image/') ? (
+                <img
+                  src={pendingAttachment.url}
+                  alt="preview"
+                  className="w-6 h-6 rounded-md object-cover border border-white/10"
+                />
+              ) : (
+                <FileText className="w-4 h-4 text-gold-400" />
+              )}
+              <span className="font-medium truncate max-w-xs">{pendingAttachment.name}</span>
+              {pendingAttachment.size && (
+                <span className="text-[10px] text-[#7A776F]">
+                  ({(pendingAttachment.size / 1024).toFixed(0)} KB)
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setPendingAttachment(null)}
+                className="p-1 rounded-full hover:bg-[#252932] text-[#8E8B83] hover:text-ivory-100 transition-colors ml-1"
+                title="Remove attachment"
+              >
+                <XIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
         <form
           onSubmit={handleSubmit}
           className="relative max-w-4xl mx-auto flex items-center bg-[#131519] border border-[#232730] focus-within:border-gold-500/50 rounded-2xl px-4 py-2.5 shadow-2xl transition-all"
         >
-          {/* Attachment Icon */}
+          {/* Active Upload Paperclip Icon */}
           <button
             type="button"
-            className="p-1.5 text-[#6D6B63] hover:text-ivory-100 transition-colors"
-            title="Attach reference"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading || isLoading}
+            className={`p-1.5 transition-colors rounded-lg flex items-center justify-center ${
+              pendingAttachment
+                ? 'text-gold-400 bg-gold-500/15'
+                : 'text-[#6D6B63] hover:text-gold-400 hover:bg-[#1A1D22]'
+            }`}
+            title="Attach floor plan, image, brochure, or property document"
           >
-            <Paperclip className="w-4 h-4" />
+            {isUploading ? (
+              <Loader2 className="w-4 h-4 animate-spin text-gold-400" />
+            ) : (
+              <Paperclip className="w-4 h-4" />
+            )}
           </button>
 
           {/* Input Field */}
@@ -256,7 +426,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask anything about DarGlobal or Wasalt..."
+            placeholder={
+              pendingAttachment
+                ? `Ask about ${pendingAttachment.name}...`
+                : "Ask anything about DarGlobal or Wasalt..."
+            }
             className="flex-1 bg-transparent px-3 text-xs md:text-sm text-ivory-100 placeholder-[#6D6A62] focus:outline-none"
             disabled={isLoading}
           />
@@ -264,7 +438,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           {/* Circular Gold Send Button */}
           <button
             type="submit"
-            disabled={!input.trim() || isLoading}
+            disabled={(!input.trim() && !pendingAttachment) || isLoading || isUploading}
             className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#D4AF37] to-[#F1D88A] disabled:opacity-40 hover:opacity-95 text-[#0B0D0E] flex items-center justify-center transition-all shadow-md active:scale-95 shrink-0"
           >
             <Send className="w-3.5 h-3.5 fill-current ml-0.5" />

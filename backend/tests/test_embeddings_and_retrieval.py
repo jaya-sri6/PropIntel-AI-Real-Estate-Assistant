@@ -28,8 +28,7 @@ def test_text_chunking():
     assert len(chunks) >= 2
     assert len(chunks[0].split()) <= 300
 
-@pytest.mark.asyncio
-async def test_indexing_and_vector_retrieval(test_db):
+def test_indexing_and_vector_retrieval(test_db):
     doc1 = Document(
         source_name="DarGlobal",
         original_url="https://darglobal.co.uk/one-of-one/project-pagani",
@@ -49,7 +48,7 @@ async def test_indexing_and_vector_retrieval(test_db):
     test_db.add_all([doc1, doc2])
     test_db.commit()
 
-    indexed = await retrieval_service.index_pending_documents(test_db)
+    indexed = retrieval_service.index_pending_documents(test_db)
     assert indexed == 2
 
     # Query for Dubai projects

@@ -54,7 +54,7 @@ def seeded_db():
 @pytest.mark.asyncio
 async def test_acceptance_scenario_1_dubai(seeded_db):
     """Test 1: 'What projects does DarGlobal have in Dubai?' -> Relevant DarGlobal projects with source links."""
-    await retrieval_service.index_pending_documents(seeded_db)
+    retrieval_service.index_pending_documents(seeded_db)
     
     with patch.object(rag_service.llm_service, "generate_response", new_callable=AsyncMock) as mock_llm:
         mock_llm.return_value = (
@@ -75,7 +75,7 @@ async def test_acceptance_scenario_1_dubai(seeded_db):
 @pytest.mark.asyncio
 async def test_acceptance_scenario_2_villas_riyadh(seeded_db):
     """Test 2: 'Find villas in Riyadh.' -> Actual indexed Wasalt villa records."""
-    await retrieval_service.index_pending_documents(seeded_db)
+    retrieval_service.index_pending_documents(seeded_db)
 
     with patch.object(rag_service.llm_service, "generate_response", new_callable=AsyncMock) as mock_llm:
         mock_llm.return_value = (
@@ -94,7 +94,7 @@ async def test_acceptance_scenario_2_villas_riyadh(seeded_db):
 @pytest.mark.asyncio
 async def test_acceptance_scenario_3_compare(seeded_db):
     """Test 3: 'Compare DarGlobal and Wasalt.' -> Explain distinction grounded in collected data."""
-    await retrieval_service.index_pending_documents(seeded_db)
+    retrieval_service.index_pending_documents(seeded_db)
 
     with patch.object(rag_service.llm_service, "generate_response", new_callable=AsyncMock) as mock_llm:
         mock_llm.return_value = (
@@ -115,7 +115,7 @@ async def test_acceptance_scenario_3_compare(seeded_db):
 @pytest.mark.asyncio
 async def test_acceptance_scenario_6_missing_data(seeded_db):
     """Test 6: 'Tell me something not present in your database.' -> Admits information is not available."""
-    await retrieval_service.index_pending_documents(seeded_db)
+    retrieval_service.index_pending_documents(seeded_db)
 
     with patch.object(rag_service.llm_service, "generate_response", new_callable=AsyncMock) as mock_llm:
         mock_llm.return_value = "This information is not available in the collected DarGlobal and Wasalt sources."

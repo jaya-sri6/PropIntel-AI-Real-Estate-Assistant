@@ -15,48 +15,58 @@ class RetrievalService:
     def __init__(self):
         self.embedding_service = embedding_service
 
-    async def index_pending_documents(self, db: Session) -> int:
-        """Indexes all documents that do not have chunks yet."""
+    def index_pending_documents(self, db: Session) -> int:
+        """Indexes all documents that do not have chunks yet using high-speed batching."""
         docs = db.query(Document).all()
-        indexed_count = 0
-
+        docs_to_index = []
         for doc in docs:
-            # Check if document already has chunks
-            existing_chunks = db.query(DocumentChunk).filter(DocumentChunk.document_id == doc.id).count()
-            if existing_chunks > 0:
-                continue
+            existing = db.query(DocumentChunk).filter(DocumentChunk.document_id == doc.id).first()
+            if not existing:
+                docs_to_index.append(doc)
 
-            # Embed document itself
-            doc.embedding = self.embedding_service.embed_text(doc.title + "\n" + doc.text_content[:500])
+        if not docs_to_index:
+            return 0
 
-            # Chunk text
+        # Prepare all doc preview texts and all chunks in one unified list for batch embedding
+        doc_preview_texts = [d.title + "\n" + d.text_content[:500] for d in docs_to_index]
+        all_chunks_data = []  # list of (doc, chunk_index, chunk_text)
+        for doc in docs_to_index:
             chunks = TextChunker.chunk_text(doc.text_content, chunk_size=300, chunk_overlap=40)
             if not chunks:
                 chunks = [doc.text_content]
+            for i, c_text in enumerate(chunks):
+                all_chunks_data.append((doc, i, c_text))
 
-            chunk_embeddings = self.embedding_service.embed_batch(chunks)
+        # Batch embed doc previews
+        logger.info(f"Embedding {len(doc_preview_texts)} document summaries...")
+        doc_embeddings = self.embedding_service.embed_batch(doc_preview_texts)
+        for doc, emb in zip(docs_to_index, doc_embeddings):
+            doc.embedding = emb
 
-            for i, (chunk_text, emb) in enumerate(zip(chunks, chunk_embeddings)):
-                chunk_record = DocumentChunk(
-                    document_id=doc.id,
-                    chunk_index=i,
-                    chunk_text=chunk_text,
-                    embedding=emb,
-                    metadata_json={
-                        "source": doc.source_name,
-                        "title": doc.title,
-                        "url": doc.original_url,
-                        "doc_type": doc.doc_type,
-                        **(doc.metadata_json or {})
-                    }
-                )
-                db.add(chunk_record)
+        # Batch embed all chunks
+        logger.info(f"Embedding {len(all_chunks_data)} document chunks in batch...")
+        chunk_texts = [item[2] for item in all_chunks_data]
+        chunk_embeddings = self.embedding_service.embed_batch(chunk_texts)
 
-            indexed_count += 1
+        for (doc, chunk_idx, chunk_text), emb in zip(all_chunks_data, chunk_embeddings):
+            chunk_record = DocumentChunk(
+                document_id=doc.id,
+                chunk_index=chunk_idx,
+                chunk_text=chunk_text,
+                embedding=emb,
+                metadata_json={
+                    "source": doc.source_name,
+                    "title": doc.title,
+                    "url": doc.original_url,
+                    "doc_type": doc.doc_type,
+                    **(doc.metadata_json or {})
+                }
+            )
+            db.add(chunk_record)
 
         db.commit()
-        logger.info(f"RetrievalService: Indexed {indexed_count} new documents into chunks.")
-        return indexed_count
+        logger.info(f"RetrievalService: Successfully batch indexed {len(docs_to_index)} documents ({len(all_chunks_data)} chunks).")
+        return len(docs_to_index)
 
     def search_similar_chunks(
         self,
@@ -67,6 +77,17 @@ class RetrievalService:
         similarity_threshold: Optional[float] = None
     ) -> List[Dict[str, Any]]:
         threshold = similarity_threshold if similarity_threshold is not None else settings.SIMILARITY_THRESHOLD
+
+        # Smart intent override: if query explicitly mentions or compares sources, adjust effective filter
+        effective_source = source_filter
+        q_lower = query.lower()
+        if "compare" in q_lower or ("darglobal" in q_lower and "wasalt" in q_lower) or ("dar global" in q_lower and "wasalt" in q_lower):
+            effective_source = "all"
+        elif ("darglobal" in q_lower or "dar global" in q_lower) and source_filter and "wasalt" in source_filter.lower():
+            effective_source = "all"
+        elif "wasalt" in q_lower and source_filter and "dar" in source_filter.lower():
+            effective_source = "all"
+
         query_vector = self.embedding_service.embed_text(query)
         q_norm = np.array(query_vector, dtype=np.float32)
         norm_val = np.linalg.norm(q_norm)
@@ -81,10 +102,10 @@ class RetrievalService:
                 # Cosine distance: 1 - cosine_similarity. Distance <= (1 - threshold)
                 source_condition = ""
                 params = {"q_vec": str(query_vector), "limit": top_k * 2}
-                if source_filter and source_filter.lower() not in ("all", "both"):
-                    if "dar" in source_filter.lower():
+                if effective_source and effective_source.lower() not in ("all", "both"):
+                    if "dar" in effective_source.lower():
                         source_condition = "AND d.source_name = 'DarGlobal'"
-                    elif "wasalt" in source_filter.lower():
+                    elif "wasalt" in effective_source.lower():
                         source_condition = "AND d.source_name = 'Wasalt'"
 
                 query_sql = f"""
@@ -125,14 +146,15 @@ class RetrievalService:
 
         # Python cosine similarity fallback (for SQLite or non-pgvector environments)
         query_obj = db.query(DocumentChunk, Document).join(Document, DocumentChunk.document_id == Document.id)
-        if source_filter and source_filter.lower() not in ("all", "both"):
-            if "dar" in source_filter.lower():
+        if effective_source and effective_source.lower() not in ("all", "both"):
+            if "dar" in effective_source.lower():
                 query_obj = query_obj.filter(Document.source_name == "DarGlobal")
-            elif "wasalt" in source_filter.lower():
+            elif "wasalt" in effective_source.lower():
                 query_obj = query_obj.filter(Document.source_name == "Wasalt")
 
         all_chunks = query_obj.all()
         scored_chunks = []
+        fallback_chunks = []
 
         for chunk, doc in all_chunks:
             emb = chunk.embedding
@@ -150,17 +172,40 @@ class RetrievalService:
                 continue
             cos_sim = float(np.dot(q_norm, emb_arr) / (np.linalg.norm(emb_arr)))
 
+            # City & property relevance boost for targeted queries
+            effective_score = cos_sim
+            q_words = set(q_lower.split())
+            doc_text_lower = (doc.title + " " + chunk.chunk_text).lower()
+
+            for city in ("riyadh", "dubai", "jeddah", "muscat", "london", "makkah"):
+                if city in q_words and city in doc_text_lower:
+                    effective_score += 0.04
+                    break
+
+            if any(w in q_words for w in ("villa", "villas", "apartment", "apartments", "find", "show", "sale", "buy", "rent")):
+                if doc.doc_type in ("property", "project"):
+                    effective_score += 0.05
+                    if "sale" in doc_text_lower:
+                        effective_score += 0.03
+
+            cand = {
+                "chunk_id": chunk.id,
+                "document_id": doc.id,
+                "title": doc.title,
+                "source": doc.source_name,
+                "url": doc.original_url,
+                "text": chunk.chunk_text,
+                "relevance_score": round(effective_score, 3),
+                "metadata": chunk.metadata_json
+            }
             if cos_sim >= threshold:
-                scored_chunks.append({
-                    "chunk_id": chunk.id,
-                    "document_id": doc.id,
-                    "title": doc.title,
-                    "source": doc.source_name,
-                    "url": doc.original_url,
-                    "text": chunk.chunk_text,
-                    "relevance_score": round(cos_sim, 3),
-                    "metadata": chunk.metadata_json
-                })
+                scored_chunks.append(cand)
+            elif cos_sim >= 0.15 and similarity_threshold is None:
+                fallback_chunks.append(cand)
+
+        if not scored_chunks and fallback_chunks and similarity_threshold is None:
+            fallback_chunks.sort(key=lambda x: x["relevance_score"], reverse=True)
+            return fallback_chunks[:top_k]
 
         # Sort descending by relevance score
         scored_chunks.sort(key=lambda x: x["relevance_score"], reverse=True)

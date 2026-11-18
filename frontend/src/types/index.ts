@@ -5,10 +5,18 @@ export interface SourceCitation {
   relevance_score?: number;
 }
 
+export interface ChatAttachment {
+  name: string;
+  url: string;
+  size?: number;
+  type?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  attachment?: ChatAttachment;
   sources?: SourceCitation[];
   timestamp: string;
 }

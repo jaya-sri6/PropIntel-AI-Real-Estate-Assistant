@@ -43,7 +43,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
           <div className="pr-3">
             <div className="text-[11px] text-[#78756D] font-medium">DarGlobal</div>
             <div className="text-2xl font-bold font-serif text-ivory-50 tracking-tight mt-0.5">
-              {stats ? (stats.darglobal_record_count || 248) : 248}
+              {stats !== null && stats.darglobal_record_count !== undefined ? stats.darglobal_record_count : 39}
             </div>
             <div className="text-[10px] text-[#625F58]">Records</div>
           </div>
@@ -52,7 +52,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
           <div className="pl-3">
             <div className="text-[11px] text-[#78756D] font-medium">Wasalt</div>
             <div className="text-2xl font-bold font-serif text-ivory-50 tracking-tight mt-0.5">
-              {stats ? (stats.wasalt_record_count || 312) : 312}
+              {stats !== null && stats.wasalt_record_count !== undefined ? stats.wasalt_record_count : 114}
             </div>
             <div className="text-[10px] text-[#625F58]">Records</div>
           </div>

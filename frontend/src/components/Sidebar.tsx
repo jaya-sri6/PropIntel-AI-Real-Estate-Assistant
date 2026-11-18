@@ -1,9 +1,9 @@
 import React from 'react';
-import { MessageSquare, LayoutGrid, ShieldCheck, Info, Check, CheckCircle2, Circle } from 'lucide-react';
+import { MessageSquare, History, LayoutGrid, Building2, ShieldCheck, Info, Check, CheckCircle2, Circle } from 'lucide-react';
 
 interface SidebarProps {
-  currentTab: 'chat' | 'explorer' | 'admin' | 'about';
-  setCurrentTab: (tab: 'chat' | 'explorer' | 'admin' | 'about') => void;
+  currentTab: 'chat' | 'history' | 'explorer' | 'projects' | 'admin' | 'about';
+  setCurrentTab: (tab: 'chat' | 'history' | 'explorer' | 'projects' | 'admin' | 'about') => void;
   sourceFilter: string;
   setSourceFilter: (source: string) => void;
   onNewChat: () => void;
@@ -50,6 +50,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>New Chat</span>
           </button>
 
+          {/* Conversation History */}
+          <button
+            onClick={() => setCurrentTab('history')}
+            className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+              currentTab === 'history'
+                ? 'bg-[#1C1813] text-gold-300 border border-gold-500/30'
+                : 'text-[#9A968B] hover:text-ivory-100 hover:bg-[#131518]'
+            }`}
+          >
+            <History className={`w-4 h-4 ${currentTab === 'history' ? 'text-gold-400' : 'text-[#7A776F]'}`} />
+            <span>Conversation History</span>
+          </button>
+
           {/* Data Explorer */}
           <button
             onClick={() => setCurrentTab('explorer')}
@@ -61,6 +74,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <LayoutGrid className={`w-4 h-4 ${currentTab === 'explorer' ? 'text-gold-400' : 'text-[#7A776F]'}`} />
             <span>Data Explorer</span>
+          </button>
+
+          {/* Project Explorer */}
+          <button
+            onClick={() => setCurrentTab('projects')}
+            className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+              currentTab === 'projects'
+                ? 'bg-[#1C1813] text-gold-300 border border-gold-500/30'
+                : 'text-[#9A968B] hover:text-ivory-100 hover:bg-[#131518]'
+            }`}
+          >
+            <Building2 className={`w-4 h-4 ${currentTab === 'projects' ? 'text-gold-400' : 'text-[#7A776F]'}`} />
+            <span>Project Explorer</span>
           </button>
 
           {/* Admin Dashboard */}
@@ -148,15 +174,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Bottom Skyline & Powered By */}
-      <div className="relative pt-10 pb-5 px-5">
-        {/* Glowing skyline silhouette */}
-        <div className="w-full h-24 overflow-hidden mb-3 opacity-70">
-          <img src="/skyline.svg" alt="Skyline" className="w-full h-full object-cover" />
-        </div>
-        <div className="text-[11px] text-[#6E6B63] leading-tight">
-          Powered by <br />
-          <span className="text-gold-400/90 font-medium">DarGlobal & Wasalt</span>
+      {/* Bottom Dubai Skyline Card & Powered By */}
+      <div className="p-4 pt-2 mt-auto">
+        <div className="relative rounded-2xl overflow-hidden border border-[#20242B] bg-[#111317] shadow-lg group">
+          {/* Skyline image fitted cleanly showing Burj Khalifa and night lights */}
+          <div className="relative aspect-[16/9] w-full overflow-hidden bg-black">
+            <img
+              src="/images/dubai-skyline.jpg"
+              alt="Dubai Skyline & Burj Khalifa"
+              className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 brightness-95"
+            />
+            {/* Soft gradient blend at bottom of image */}
+            <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[#111317] to-transparent pointer-events-none" />
+          </div>
+
+          {/* Powered by Text Footer */}
+          <div className="px-3 py-2 bg-[#111317] border-t border-[#1C2027] flex items-center justify-between">
+            <div className="leading-tight">
+              <div className="text-[10px] text-[#78756D] uppercase tracking-wider font-semibold">
+                Intelligence Platform
+              </div>
+              <div className="text-xs text-ivory-100 font-medium">
+                DarGlobal <span className="text-gold-400">&</span> Wasalt
+              </div>
+            </div>
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="System Connected" />
+          </div>
         </div>
       </div>
     </aside>

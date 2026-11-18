@@ -1,4 +1,5 @@
 import logging
+import inspect
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
@@ -57,11 +58,13 @@ async def trigger_scrape(
 ):
     try:
         manager = ScraperManager(db=db)
-        job = await manager.run_scraping(
+        job = manager.run_scraping(
             source_filter=request.source or "all",
             index_service=retrieval_service,
             live=True
         )
+        if inspect.iscoroutine(job):
+            job = await job
         return ScrapeJobResponse.model_validate(job)
     except Exception as e:
         logger.error(f"Error triggering scrape: {e}", exc_info=True)

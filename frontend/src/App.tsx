@@ -3,14 +3,18 @@ import { Sidebar } from './components/Sidebar';
 import { ChatArea } from './components/ChatArea';
 import { RightPanel } from './components/RightPanel';
 import { DataExplorerModal } from './components/DataExplorerModal';
+import { ProjectExplorerModal } from './components/ProjectExplorerModal';
+import { ProjectExplorerView } from './components/ProjectExplorerView';
 import { AdminDashboardModal } from './components/AdminDashboardModal';
-import { AboutModal } from './components/AboutModal';
+import { AdminDashboardView } from './components/AdminDashboardView';
+import { ConversationHistoryView } from './components/ConversationHistoryView';
+import { AboutView } from './components/AboutView';
 import { SourceViewerModal } from './components/SourceViewerModal';
-import { ChatMessage, SourceCitation, AdminStats } from './types';
+import { ChatMessage, SourceCitation, AdminStats, ChatAttachment } from './types';
 import { api } from './services/api';
 
 export const App: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<'chat' | 'explorer' | 'admin' | 'about'>('chat');
+  const [currentTab, setCurrentTab] = useState<'chat' | 'history' | 'explorer' | 'projects' | 'admin' | 'about'>('chat');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [conversationId, setConversationId] = useState<string>(() => 'conv-' + Math.random().toString(36).substring(2, 9));
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -87,19 +91,27 @@ These projects are part of DarGlobal's portfolio of international luxury develop
     setMessages([]);
   };
 
-  const handleSendMessage = async (userText: string) => {
+  const handleContinueConversation = (convId: string, pastMessages: ChatMessage[]) => {
+    setConversationId(convId);
+    setMessages(pastMessages);
+    setCurrentTab('chat');
+  };
+
+  const handleSendMessage = async (userText: string, overrideFilter?: string, attachment?: ChatAttachment) => {
     const userMsg: ChatMessage = {
       id: 'msg-' + Date.now(),
       role: 'user',
       content: userText,
+      attachment: attachment,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
 
+    const filterToUse = overrideFilter || sourceFilter;
     try {
-      const result = await api.sendMessage(userText, conversationId, sourceFilter);
+      const result = await api.sendMessage(userText, conversationId, filterToUse, attachment);
       const assistantMsg: ChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         role: 'assistant',
@@ -122,6 +134,22 @@ These projects are part of DarGlobal's portfolio of international luxury develop
     }
   };
 
+  const handleSelectPrompt = (promptText: string) => {
+    let effectiveFilter = sourceFilter;
+    const pLower = promptText.toLowerCase();
+    if (pLower.includes('darglobal') && sourceFilter === 'Wasalt') {
+      setSourceFilter('all');
+      effectiveFilter = 'all';
+    } else if (pLower.includes('wasalt') && sourceFilter === 'DarGlobal') {
+      setSourceFilter('all');
+      effectiveFilter = 'all';
+    } else if (pLower.includes('compare')) {
+      setSourceFilter('all');
+      effectiveFilter = 'all';
+    }
+    handleSendMessage(promptText, effectiveFilter);
+  };
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#0B0D0E] font-sans text-ivory-100">
       {/* Left Sidebar */}
@@ -133,37 +161,39 @@ These projects are part of DarGlobal's portfolio of international luxury develop
         onNewChat={handleNewChat}
       />
 
-      {/* Main Center Chat */}
-      <ChatArea
-        messages={messages}
-        onSendMessage={handleSendMessage}
-        isLoading={isLoading}
-        onSelectPrompt={(prompt) => handleSendMessage(prompt)}
-        onOpenSourceModal={(sources) => setActiveSourcesModal(sources)}
-      />
+      {/* Center & Right Area: Switches to Admin Dashboard, Conversation History, About, or Project Explorer based on currentTab */}
+      {currentTab === 'admin' ? (
+        <AdminDashboardView stats={stats} onRefresh={loadStats} />
+      ) : currentTab === 'history' ? (
+        <ConversationHistoryView onContinueConversation={handleContinueConversation} />
+      ) : currentTab === 'about' ? (
+        <AboutView />
+      ) : currentTab === 'projects' ? (
+        <ProjectExplorerView />
+      ) : (
+        <>
+          {/* Main Center Chat */}
+          <ChatArea
+            messages={messages}
+            onSendMessage={handleSendMessage}
+            isLoading={isLoading}
+            onSelectPrompt={handleSelectPrompt}
+            onOpenSourceModal={(sources) => setActiveSourcesModal(sources)}
+          />
 
-      {/* Right Overview & Quick Actions Panel */}
-      <RightPanel
-        stats={stats}
-        onRefresh={handleRefresh}
-        isRefreshing={isRefreshing}
-        onViewAllProjects={() => setCurrentTab('explorer')}
-      />
+          {/* Right Overview & Quick Actions Panel */}
+          <RightPanel
+            stats={stats}
+            onRefresh={handleRefresh}
+            isRefreshing={isRefreshing}
+            onViewAllProjects={() => setCurrentTab('projects')}
+          />
+        </>
+      )}
 
-      {/* Modals for Secondary Tabs */}
+      {/* Data Explorer Listing & Market Data Modal */}
       <DataExplorerModal
         isOpen={currentTab === 'explorer'}
-        onClose={() => setCurrentTab('chat')}
-      />
-
-      <AdminDashboardModal
-        isOpen={currentTab === 'admin'}
-        onClose={() => setCurrentTab('chat')}
-        onScrapeSuccess={loadStats}
-      />
-
-      <AboutModal
-        isOpen={currentTab === 'about'}
         onClose={() => setCurrentTab('chat')}
       />
 

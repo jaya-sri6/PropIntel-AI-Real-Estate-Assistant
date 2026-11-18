@@ -20,7 +20,7 @@ class LLMService:
         user_message: str,
         conversation_history: Optional[List[Dict[str, str]]] = None,
         temperature: float = 0.2,
-        max_tokens: int = 1000
+        max_tokens: int = 1200
     ) -> str:
         """
         Calls OpenRouter's OpenAI-compatible chat completions endpoint with async retry and exponential backoff.
