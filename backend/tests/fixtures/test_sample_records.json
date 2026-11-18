@@ -1,0 +1,71 @@
+{
+  "_comment": "TEST FIXTURE ONLY - Used strictly for automated unit and integration tests. Not mixed with production scraped data.",
+  "sample_projects": [
+    {
+      "source": "DarGlobal",
+      "title": "The Pagani Penthouse",
+      "country": "UAE",
+      "city": "Dubai",
+      "property_type": "Ultra Luxury Residential",
+      "development_type": "Residential Tower",
+      "luxury_brand": "Pagani",
+      "price": null,
+      "currency": null,
+      "description": "Ultra-luxury residential tower overlooking the Dubai Canal, featuring bespoke interiors designed by Horacio Pagani.",
+      "amenities": ["Infinity Swimming Pool", "Pagani Bespoke Interiors", "Private Elevators", "Canal Views"],
+      "source_url": "https://darglobal.co.uk/one-of-one/project-pagani"
+    },
+    {
+      "source": "DarGlobal",
+      "title": "Trump Cliff Villas",
+      "country": "Oman",
+      "city": "Muscat",
+      "property_type": "Luxury Villas",
+      "development_type": "Resort Community",
+      "luxury_brand": "Trump Organization",
+      "price": null,
+      "currency": null,
+      "description": "Exclusive cliffside villas located 130 meters above the sea in the AIDA master community in Muscat.",
+      "amenities": ["Ocean Views", "18-Hole Championship Golf", "Trump Hotel Access"],
+      "source_url": "https://darglobal.co.uk/projects/properties-in-oman"
+    }
+  ],
+  "sample_properties": [
+    {
+      "source": "Wasalt",
+      "title": "Villa 450 SQM Facing South on 18m Width Street",
+      "property_type": "Villa",
+      "sale_or_rent": "sale",
+      "location": "Ar-Rimal, East Riyadh, Riyadh",
+      "city": "Riyadh",
+      "district": "Ar-Rimal",
+      "price": 2150000.0,
+      "currency": "SAR",
+      "bedrooms": 4,
+      "bathrooms": 5,
+      "area": 450.0,
+      "area_unit": "SQM",
+      "description": "Luxury modern villa in Ar-Rimal district, Riyadh.",
+      "amenities": ["South Facing", "Garage", "Private Yard"],
+      "source_url": "https://wasalt.sa/en/property/villa-450-sqm-facing-south-on-18m-width-street-5971799"
+    },
+    {
+      "source": "Wasalt",
+      "title": "Modern Apartment in Al-Nakheel",
+      "property_type": "Apartment",
+      "sale_or_rent": "rent",
+      "location": "Al-Nakheel, North Riyadh, Riyadh",
+      "city": "Riyadh",
+      "district": "Al-Nakheel",
+      "price": 85000.0,
+      "currency": "SAR",
+      "bedrooms": 3,
+      "bathrooms": 3,
+      "area": 180.0,
+      "area_unit": "SQM",
+      "description": "Contemporary 3-bedroom apartment for rent in prime North Riyadh.",
+      "amenities": ["Elevator", "Balcony", "Covered Parking"],
+      "source_url": "https://wasalt.sa/en/property/apartment-al-nakheel-102"
+    }
+  ]
+}
