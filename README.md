@@ -8,37 +8,37 @@ A production-grade, AI-powered real estate intelligence assistant that collects 
 
 ```mermaid
 flowchart TD
-    subgraph Data Extraction & Ingestion
-        DG[DarGlobal Website & Projects] --> DGS[DarGlobal Scraper]
-        WS[Wasalt Real Estate Listings] --> WSS[Wasalt Scraper]
-        DGS --> DC[Data Cleaner & Normalizer]
+    subgraph S1["Data Extraction & Ingestion"]
+        DG["DarGlobal Website & Projects"] --> DGS["DarGlobal Scraper"]
+        WS["Wasalt Real Estate Listings"] --> WSS["Wasalt Scraper"]
+        DGS --> DC["Data Cleaner & Normalizer"]
         WSS --> DC
-        DC --> DB[(PostgreSQL + pgvector / SQLite)]
+        DC --> DB[("PostgreSQL + pgvector / SQLite")]
     end
 
-    subgraph Embedding & Indexing
-        DB --> TC[Text Chunking Engine]
-        TC --> EMB[SentenceTransformer all-MiniLM-L6-v2]
-        EMB --> VEC[(Vector Index - 384d)]
+    subgraph S2["Embedding & Indexing"]
+        DB --> TC["Text Chunking Engine"]
+        TC --> EMB["SentenceTransformer all-MiniLM-L6-v2"]
+        EMB --> VEC[("Vector Index - 384d")]
     end
 
-    subgraph User Interaction & File Uploads
-        UI([Luxury UI Assistant]) --> Chat[Chat & Prompt Shortcuts]
-        UI --> Upload[Paperclip File & Image Upload]
-        Upload --> UpAPI[POST /api/upload]
-        UpAPI --> Static[/uploads/ Storage & Preview]
+    subgraph S3["User Interaction & File Uploads"]
+        UI(["Luxury UI Assistant"]) --> Chat["Chat & Prompt Shortcuts"]
+        UI --> Upload["Paperclip File & Image Upload"]
+        Upload --> UpAPI["POST /api/upload"]
+        UpAPI --> Static["Uploads Storage & Preview"]
     end
 
-    subgraph RAG & Chat Pipeline
-        Chat --> Pre[Query Preprocessing]
-        Pre --> QEmb[Query Embedding]
-        QEmb --> Ret[Vector Similarity Search Top-K]
+    subgraph S4["RAG & Chat Pipeline"]
+        Chat --> Pre["Query Preprocessing"]
+        Pre --> QEmb["Query Embedding"]
+        QEmb --> Ret["Vector Similarity Search Top-K"]
         VEC -.-> Ret
-        Ret --> Filter[Source & Metadata Filter]
-        Filter --> Ctx[Grounded Context Construction]
+        Ret --> Filter["Source & Metadata Filter"]
+        Filter --> Ctx["Grounded Context Construction"]
         Static -.-> Ctx
-        Ctx --> LLM[OpenRouter Free LLM API]
-        LLM --> Clean[Asterisk & Formatting Sanitizer]
+        Ctx --> LLM["OpenRouter Free LLM API"]
+        LLM --> Clean["Asterisk & Formatting Sanitizer"]
         Clean --> UI
     end
 ```
