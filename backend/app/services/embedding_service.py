@@ -1,60 +1,139 @@
 import os
-# Force offline mode for HuggingFace and Transformers to prevent network polling
-os.environ["HF_HUB_OFFLINE"] = "1"
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
-os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
-
 import logging
-from typing import List, Union
-import numpy as np
-from backend.app.config import settings
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
-class EmbeddingService:
-    _instance = None
-    _model = None
+# ---------------------------------------------------------------------------
+# HuggingFace / SentenceTransformers cache configuration
+# These must be set BEFORE importing sentence_transformers so the library
+# reads the correct cache directory both during the Docker build (pre-bake)
+# and at runtime on Render.
+# ---------------------------------------------------------------------------
+_HF_CACHE = os.environ.get("HF_HOME", "/app/.cache/huggingface")
+_ST_CACHE = os.environ.get("SENTENCE_TRANSFORMERS_HOME", "/app/.cache/sentence_transformers")
 
-    def __new__(cls):
+os.environ.setdefault("HF_HOME", _HF_CACHE)
+os.environ.setdefault("TRANSFORMERS_CACHE", _HF_CACHE)
+os.environ.setdefault("HF_HUB_CACHE", _HF_CACHE)
+os.environ.setdefault("SENTENCE_TRANSFORMERS_HOME", _ST_CACHE)
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+
+# Disable network access — only load from local cache.
+# If the model was baked into the Docker image this is safe.
+# If the cache is cold (local dev without baking) we fall back gracefully.
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
+from backend.app.config import settings
+
+
+class EmbeddingService:
+    """
+    Singleton wrapper around SentenceTransformer.
+
+    Design goals
+    ============
+    1. Never crash the application if the model cannot be loaded.
+    2. Return a sentinel value (None / zero-vector) so callers can decide
+       whether to skip vector retrieval and fall back to SQL search.
+    3. Work correctly when the model is pre-baked into the Docker image
+       (offline mode) *and* when running locally with network access.
+    """
+
+    _instance: Optional["EmbeddingService"] = None
+    _model = None  # SentenceTransformer instance or None
+
+    def __new__(cls) -> "EmbeddingService":
         if cls._instance is None:
-            cls._instance = super(EmbeddingService, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance._init_model()
         return cls._instance
 
-    def _init_model(self):
-        from sentence_transformers import SentenceTransformer
-        logger.info(f"Loading embedding model: {settings.EMBEDDING_MODEL_NAME}")
+    # ------------------------------------------------------------------
+    # Initialisation
+    # ------------------------------------------------------------------
+
+    def _init_model(self) -> None:
+        model_name = settings.EMBEDDING_MODEL_NAME
+        logger.info(f"EmbeddingService: attempting to load '{model_name}' …")
+
+        # --- attempt 1: offline cache (fastest, works on Render after bake) ---
         try:
-            self._model = SentenceTransformer(settings.EMBEDDING_MODEL_NAME)
-            logger.info("Successfully loaded SentenceTransformer.")
+            from sentence_transformers import SentenceTransformer
+            self._model = SentenceTransformer(model_name)
+            logger.info("EmbeddingService: model loaded successfully from cache.")
+            return
         except Exception as e:
-            logger.error(f"Failed to load SentenceTransformer: {e}")
+            logger.warning(f"EmbeddingService: offline load failed ({e}). Retrying with network …")
+
+        # --- attempt 2: allow network (useful for local dev without pre-bake) ---
+        try:
+            # Temporarily allow network access for this single retry
+            prev_hf = os.environ.pop("HF_HUB_OFFLINE", None)
+            prev_tr = os.environ.pop("TRANSFORMERS_OFFLINE", None)
+            from sentence_transformers import SentenceTransformer
+            self._model = SentenceTransformer(model_name)
+            logger.info("EmbeddingService: model loaded successfully via network.")
+            return
+        except Exception as e:
+            logger.error(
+                f"EmbeddingService: could not load '{model_name}' — "
+                f"vector retrieval disabled, SQL fallback will be used. Error: {e}"
+            )
             self._model = None
+        finally:
+            # Restore offline env vars
+            if prev_hf is not None:
+                os.environ["HF_HUB_OFFLINE"] = prev_hf
+            if prev_tr is not None:
+                os.environ["TRANSFORMERS_OFFLINE"] = prev_tr
+
+    # ------------------------------------------------------------------
+    # Public interface
+    # ------------------------------------------------------------------
 
     @property
-    def model(self):
-        if self._model is None:
-            self._init_model()
-        return self._model
+    def is_available(self) -> bool:
+        """True when the model is loaded and ready to embed text."""
+        return self._model is not None
 
-    def embed_text(self, text: str) -> List[float]:
-        if not text:
-            return [0.0] * 384
+    def embed_text(self, text: str) -> Optional[List[float]]:
+        """
+        Embed a single string.
+        Returns a list of floats on success, or None when the model is unavailable.
+        Callers must handle None (do not call .encode() on None).
+        """
+        if not text or self._model is None:
+            return None
         try:
-            embedding = self.model.encode(text, convert_to_numpy=True, normalize_embeddings=True)
+            embedding = self._model.encode(
+                text, convert_to_numpy=True, normalize_embeddings=True
+            )
             return embedding.tolist()
         except Exception as e:
-            logger.error(f"Error embedding text: {e}")
-            return [0.0] * 384
+            logger.error(f"EmbeddingService.embed_text error: {e}")
+            return None
 
-    def embed_batch(self, texts: List[str]) -> List[List[float]]:
-        if not texts:
-            return []
+    def embed_batch(self, texts: List[str]) -> List[Optional[List[float]]]:
+        """
+        Embed a list of strings.
+        Returns a list of float-lists (or None entries where embedding failed).
+        """
+        if not texts or self._model is None:
+            return [None] * len(texts)
         try:
-            embeddings = self.model.encode(texts, convert_to_numpy=True, normalize_embeddings=True, batch_size=32)
+            embeddings = self._model.encode(
+                texts,
+                convert_to_numpy=True,
+                normalize_embeddings=True,
+                batch_size=32,
+            )
             return [emb.tolist() for emb in embeddings]
         except Exception as e:
-            logger.error(f"Error embedding batch: {e}")
-            return [[0.0] * 384 for _ in texts]
+            logger.error(f"EmbeddingService.embed_batch error: {e}")
+            return [None] * len(texts)
 
+
+# Module-level singleton — imported by retrieval_service and indexing tasks
 embedding_service = EmbeddingService()

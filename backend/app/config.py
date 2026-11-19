@@ -11,7 +11,9 @@ class Settings(BaseSettings):
     TESTING: bool = os.getenv("TESTING", "0").lower() in ("1", "true", "yes")
     
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./propintel.db")
+    # Use an absolute path for SQLite so it resolves consistently regardless of
+    # the working directory (important on Render where cwd may vary).
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:////app/propintel.db")
     
     # OpenRouter LLM
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
