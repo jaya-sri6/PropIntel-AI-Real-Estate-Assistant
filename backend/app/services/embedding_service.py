@@ -64,6 +64,10 @@ class EmbeddingService:
             self._model = SentenceTransformer(model_name)
             logger.info("EmbeddingService: model loaded successfully from cache.")
             return
+        except (ImportError, ModuleNotFoundError) as e:
+            logger.info(f"EmbeddingService: sentence-transformers not installed ({e}) — running in fast SQL hybrid mode.")
+            self._model = None
+            return
         except Exception as e:
             logger.warning(f"EmbeddingService: offline load failed ({e}). Retrying with network …")
 

@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.db
+!propintel.db
 *.db-journal
 .pytest_cache/
 .env
