@@ -580,8 +580,53 @@ class DarGlobalScraper(BaseScraper):
                 "metadata_json": clean_record
             })
 
+        # Also generate property records for Data Explorer
+        properties = []
+        for p in projects:
+            text_check = f"{p['title']} {p.get('property_type', '')} {p.get('development_type', '')}".lower()
+            if 'villa' in text_check:
+                p_type = 'Villa'
+            elif 'penthouse' in text_check:
+                p_type = 'Apartment'
+            else:
+                p_type = 'Apartment'
+
+            country = p.get('country', '')
+            if country == 'UAE':
+                currency = 'AED'
+            elif country == 'Saudi Arabia':
+                currency = 'SAR'
+            elif country in ('UK', 'United Kingdom'):
+                currency = 'GBP'
+            elif country == 'Spain':
+                currency = 'EUR'
+            elif country == 'Oman':
+                currency = 'OMR'
+            else:
+                currency = 'USD'
+
+            properties.append({
+                "source": "DarGlobal",
+                "title": p["title"],
+                "property_type": p_type,
+                "sale_or_rent": "sale",
+                "location": p.get("location"),
+                "city": p.get("city"),
+                "district": p.get("luxury_brand") or p.get("development_type") or country,
+                "price": None,
+                "currency": currency,
+                "bedrooms": None,
+                "bathrooms": None,
+                "area": None,
+                "area_unit": "SQM",
+                "description": p.get("description"),
+                "amenities": p.get("amenities", []),
+                "source_url": p["source_url"],
+                "scraped_at": p.get("scraped_at")
+            })
+
         return {
             "projects": projects,
-            "properties": [],
+            "properties": properties,
             "documents": documents
         }
