@@ -67,11 +67,12 @@ class EmbeddingService:
         except Exception as e:
             logger.warning(f"EmbeddingService: offline load failed ({e}). Retrying with network …")
 
-        # --- attempt 2: allow network (useful for local dev without pre-bake) ---
+        # --- attempt 2: allow network with short timeout (local dev without pre-bake) ---
+        prev_hf = os.environ.pop("HF_HUB_OFFLINE", None)
+        prev_tr = os.environ.pop("TRANSFORMERS_OFFLINE", None)
+        # Set a short network timeout so the server doesn't hang for minutes
+        os.environ["HF_HUB_DOWNLOAD_TIMEOUT"] = "10"
         try:
-            # Temporarily allow network access for this single retry
-            prev_hf = os.environ.pop("HF_HUB_OFFLINE", None)
-            prev_tr = os.environ.pop("TRANSFORMERS_OFFLINE", None)
             from sentence_transformers import SentenceTransformer
             self._model = SentenceTransformer(model_name)
             logger.info("EmbeddingService: model loaded successfully via network.")
@@ -88,6 +89,7 @@ class EmbeddingService:
                 os.environ["HF_HUB_OFFLINE"] = prev_hf
             if prev_tr is not None:
                 os.environ["TRANSFORMERS_OFFLINE"] = prev_tr
+            os.environ.pop("HF_HUB_DOWNLOAD_TIMEOUT", None)
 
     # ------------------------------------------------------------------
     # Public interface
